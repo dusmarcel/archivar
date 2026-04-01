@@ -1,6 +1,7 @@
 use std::fs::create_dir;
-
 use walkdir::WalkDir;
+
+use archivar::archive_top_dir::archive_top_dir;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut kanzlei = false;
@@ -30,6 +31,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if kanzlei {
+        archive_top_dir("kanzlei")?;
+
         if !ablage1 {
             create_dir("ablage1")?
         }
