@@ -1,10 +1,34 @@
 //use std::fs::create_dir;
+use rusqlite::Connection;
 use walkdir::WalkDir;
 
 use archivar::archive_top_dir::archive_top_dir;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut kanzlei = false;
+
+    let matches = clap::Command::new("Archivar")
+        .version("0.1.0")
+        .author("Marcel Keienborg <marcel@keienb.org>")
+        .about("A simple archiving tool for my directories")
+        .arg(clap::Arg::new("dry-run")
+            .short('d')
+            .long("dry-run")
+            .action(clap::ArgAction::SetTrue)
+            .help("Just writing what I would do, but not actually doing it")
+        )
+        .get_matches();
+    let d = matches.get_flag("dry-run");
+
+    let conn = Connection::open("archivar.db")?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS archive (
+            fileno INTEGER PRIMARY KEY,
+            change_time TEXT NOT NULL,
+            hash INTEGER UNIQUE
+        )",
+        (),
+    )?;
     // let mut ablage1 = false;
     // let mut ablage3 = false;
     // let mut ablage6 = false;
@@ -31,7 +55,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if kanzlei {
-        archive_top_dir("kanzlei")?;
+        archive_top_dir("kanzlei", d)?;
 
         // if !ablage1 {
         //     create_dir("ablage1")?
