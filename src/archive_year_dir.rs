@@ -12,16 +12,12 @@ fn starts_with_three_digits(dir_name: &str) -> bool {
 fn age_bucket(age: Duration) -> &'static str {
     const YEAR: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
-    if age > YEAR * 8 {
-        "letzte Aenderung vor mehr als 8 Jahren"
-    } else if age > YEAR * 6 {
-        "letzte Aenderung vor mehr als 6 Jahren"
-    } else if age > YEAR * 3 {
-        "letzte Aenderung vor mehr als 3 Jahren"
-    } else if age > YEAR {
-        "letzte Aenderung vor mehr als 1 Jahr"
+    if age > YEAR * 4 {
+        "letzte Aenderung vor mehr als 4 Jahren"
+    } else if age > YEAR * 2 {
+        "letzte Aenderung vor mehr als 2 Jahren"
     } else {
-        "letzte Aenderung innerhalb des letzten Jahres"
+        "letzte Aenderung innerhalb der letzten 2 Jahre"
     }
 }
 
@@ -136,11 +132,26 @@ mod tests {
     fn classifies_age_into_expected_buckets() {
         let year = Duration::from_secs(365 * 24 * 60 * 60);
 
-        assert_eq!(age_bucket(year / 2), "letzte Aenderung innerhalb des letzten Jahres");
-        assert_eq!(age_bucket(year * 2), "letzte Aenderung vor mehr als 1 Jahr");
-        assert_eq!(age_bucket(year * 4), "letzte Aenderung vor mehr als 3 Jahren");
-        assert_eq!(age_bucket(year * 7), "letzte Aenderung vor mehr als 6 Jahren");
-        assert_eq!(age_bucket(year * 9), "letzte Aenderung vor mehr als 8 Jahren");
+        assert_eq!(
+            age_bucket(year / 2),
+            "letzte Aenderung innerhalb der letzten 2 Jahre"
+        );
+        assert_eq!(
+            age_bucket(year * 2),
+            "letzte Aenderung innerhalb der letzten 2 Jahre"
+        );
+        assert_eq!(
+            age_bucket(year * 3),
+            "letzte Aenderung vor mehr als 2 Jahren"
+        );
+        assert_eq!(
+            age_bucket(year * 4),
+            "letzte Aenderung vor mehr als 2 Jahren"
+        );
+        assert_eq!(
+            age_bucket(year * 5),
+            "letzte Aenderung vor mehr als 4 Jahren"
+        );
     }
 
     #[test]
