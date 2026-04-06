@@ -69,7 +69,7 @@ fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Erro
     Ok(fs::read_dir(path)?.next().is_none())
 }
 
-pub fn archive_year_dir(name: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool) -> Result<(), Box<dyn std::error::Error>> {
     let now = SystemTime::now();
 
     for entry in fs::read_dir(name)? {
@@ -87,23 +87,28 @@ pub fn archive_year_dir(name: &str) -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let is_empty = is_empty_dir(&entry.path())?;
+        if let Ok(empty_dir) = is_empty_dir(&entry.path()) {
+            if empty_dir {
+                if remove {
+                    if dry_run {
+                        println!("Would remove empty directory: {}", entry.path().display());
+                    } else {
+                        fs::remove_dir(&entry.path())?;
+                        println!("Removed empty directory: {}", entry.path().display());
+                    }
+                } else {
+                    println!("Empty directory (not removed): {}", entry.path().display());
+                }
+                continue;
+            }
+        }
 
         if let Some(latest) = latest_content_modification_time(&entry.path())? {
-            let empty_hint = if is_empty {
-                "; Verzeichnis ist leer"
-            } else {
-                ""
-            };
-
             println!(
-                "{}: {}{}",
+                "{}: {}",
                 entry.path().display(),
-                age_bucket_from_modification_time(latest, now),
-                empty_hint
+                age_bucket_from_modification_time(latest, now)
             );
-        } else {
-            println!("{}: Verzeichnis ist leer", entry.path().display());
         }
     }
 

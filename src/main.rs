@@ -5,8 +5,6 @@ use walkdir::WalkDir;
 use archivar::archive_top_dir::archive_top_dir;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut kanzlei = false;
-
     let matches = clap::Command::new("Archivar")
         .version("0.1.0")
         .author("Marcel Keienborg <marcel@keienb.org>")
@@ -17,8 +15,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .action(clap::ArgAction::SetTrue)
             .help("Just writing what I would do, but not actually doing it")
         )
+        .arg(clap::Arg::new("remove-empty-dirs")
+            .short('r')
+            .long("remove")
+            .action(clap::ArgAction::SetTrue)
+            .help("Remove empty directories")
+        )
         .get_matches();
     let d = matches.get_flag("dry-run");
+    let r = matches.get_flag("remove-empty-dirs");
 
     let conn = Connection::open("archivar.db")?;
     conn.execute(
@@ -29,52 +34,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )",
         (),
     )?;
-    // let mut ablage1 = false;
-    // let mut ablage3 = false;
-    // let mut ablage6 = false;
-    // let mut ablage8 = false;
 
-    let walker = WalkDir::new(".").max_depth(1).into_iter();
-    for entry in walker {
-        match entry {
-            Ok(entry) => {
+    for dir in ["kanzlei", "ablage2", "ablage4", "ablage6", "ablage8"] {
+        let mut found = false;
+        let walker = WalkDir::new(".").max_depth(1).into_iter();
+        for entry in walker {
+            if let Ok(entry) = entry {
                 if entry.file_type().is_dir() {
-                    match entry.path().file_name() {
-                        Some(name) if name == "kanzlei" => kanzlei = true,
-                        // Some(name) if name == "ablage1" => ablage1 = true,
-                        // Some(name) if name == "ablage3" => ablage3 = true,
-                        // Some(name) if name == "ablage6" => ablage6 = true,
-                        // Some(name) if name == "ablage8" => ablage8 = true,
-                        _ => (),
-                        
+                    if let Some(name) = entry.path().file_name() {
+                        if name == dir {
+                            found = true;
+                        }
                     }
                 }
             }
-            Err(err) => eprintln!("Error: {}", err),
+        }
+
+        if found {
+            archive_top_dir(dir, d, r)?;           
+        } else {
+            println!("Directory '{}' not found, skipping.", dir);
         }
     }
 
-    if kanzlei {
-        archive_top_dir("kanzlei", d)?;
-
-        // if !ablage1 {
-        //     create_dir("ablage1")?
-        // }
-
-        // if !ablage3 {
-        //     create_dir("ablage3")?
-        // }
-
-        // if !ablage6 {
-        //     create_dir("ablage6")?
-        // }
-
-        // if !ablage8 {
-        //     create_dir("ablage8")?
-        // }
-
-        Ok(())
-    } else {
-        Err("Aborting: Directory kanzlei not found. Nothing to archive!".into())
-    }
+    Ok(())
 }
