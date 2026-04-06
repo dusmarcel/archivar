@@ -1,12 +1,19 @@
 use std::fs;
 
+use rusqlite::Connection;
+
 use crate::archive_year_dir::archive_year_dir;
 
 fn is_year_dir(dir_name: &str) -> bool {
     dir_name.len() == 2 && dir_name.chars().all(|c| c.is_ascii_digit())
 }
 
-pub fn archive_top_dir(name: &str, dry_run: bool, remove: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn archive_top_dir(name: &str, dry_run: bool, remove: bool, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+    conn.execute(
+        "INSERT INTO archive (year, no, change_time, hash) VALUES (?1, ?2, ?3, ?4)",
+        (1, 2, "3", 4)
+    )?;
+    
     if dry_run {
         println!("dry run!");
     }
@@ -24,7 +31,7 @@ pub fn archive_top_dir(name: &str, dry_run: bool, remove: bool) -> Result<(), Bo
         };
 
         if is_year_dir(&dir_name) {
-            archive_year_dir(entry.path().to_string_lossy().as_ref(), dry_run, remove)?;
+            archive_year_dir(entry.path().to_string_lossy().as_ref(), dry_run, remove, conn)?;
         }
     }
 

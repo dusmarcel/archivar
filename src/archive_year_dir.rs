@@ -3,6 +3,7 @@ use std::time::{Duration, SystemTime};
 
 use chrono::{Datelike, Local, TimeZone};
 use walkdir::WalkDir;
+use rusqlite::Connection;
 
 use crate::archive_dir::archive_dir;
 
@@ -68,7 +69,7 @@ fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Erro
     Ok(fs::read_dir(path)?.next().is_none())
 }
 
-pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     let now = SystemTime::now();
 
     for entry in fs::read_dir(name)? {

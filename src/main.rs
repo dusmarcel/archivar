@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         if found {
-            archive_top_dir(dir, d, r)?;           
+            archive_top_dir(dir, d, r, &conn)?;           
         } else {
             println!("Directory '{}' not found, skipping.", dir);
         }
