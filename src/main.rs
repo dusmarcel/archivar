@@ -28,9 +28,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = Connection::open("archivar.db")?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS archive (
-            fileno INTEGER PRIMARY KEY,
+            year INTEGER NOT NULL,
+            no INTEGER NOT NULL,
             change_time TEXT NOT NULL,
-            hash INTEGER UNIQUE
+            hash INTEGER UNIQUE,
+            PRIMARY KEY (year, no)
         )",
         (),
     )?;

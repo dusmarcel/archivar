@@ -4,24 +4,23 @@ use std::time::{Duration, SystemTime};
 use chrono::{Datelike, Local, TimeZone};
 use walkdir::WalkDir;
 
+use crate::archive_dir::archive_dir;
+
+#[derive(Debug, PartialEq, PartialOrd)]
+enum Bucket {
+    Last2Years,
+    MoreThan2Years,
+    MoreThan4Years,
+    MoreThan6Years,
+    MoreThan8Years
+}
+
 fn starts_with_three_digits(dir_name: &str) -> bool {
     dir_name.chars().take(3).count() == 3
         && dir_name.chars().take(3).all(|c| c.is_ascii_digit())
 }
 
-fn age_bucket(age: Duration) -> &'static str {
-    const YEAR: Duration = Duration::from_secs(365 * 24 * 60 * 60);
-
-    if age > YEAR * 4 {
-        "letzte Aenderung vor mehr als 4 Jahren"
-    } else if age > YEAR * 2 {
-        "letzte Aenderung vor mehr als 2 Jahren"
-    } else {
-        "letzte Aenderung innerhalb der letzten 2 Jahre"
-    }
-}
-
-fn age_bucket_from_modification_time(latest: SystemTime, now: SystemTime) -> &'static str {
+fn age_bucket(latest: SystemTime, now: SystemTime) -> Bucket {
     const YEAR: Duration = Duration::from_secs(365 * 24 * 60 * 60);
 
     let age = now.duration_since(latest).unwrap_or(Duration::ZERO);
@@ -35,11 +34,15 @@ fn age_bucket_from_modification_time(latest: SystemTime, now: SystemTime) -> &'s
         .unwrap_or(Duration::ZERO);
 
     if january_age > YEAR * 8 {
-        "letzte Aenderung vor mehr als 8 Jahren"
+        Bucket::MoreThan8Years
     } else if january_age > YEAR * 6 {
-        "letzte Aenderung vor mehr als 6 Jahren"
+        Bucket::MoreThan6Years
+    } else if age > YEAR * 4 {
+        Bucket::MoreThan4Years
+    } else if age > YEAR * 2 {
+        Bucket::MoreThan2Years
     } else {
-        age_bucket(age)
+        Bucket::Last2Years
     }
 }
 
@@ -100,11 +103,12 @@ pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool) -> Result<(), B
         }
 
         if let Some(latest) = latest_content_modification_time(&entry.path())? {
-            println!(
-                "{}: {}",
-                entry.path().display(),
-                age_bucket_from_modification_time(latest, now)
-            );
+            let bucket = age_bucket(latest, now);
+
+            println!("{}: {:#?}", entry.path().display(), bucket);
+            if bucket > Bucket::Last2Years {
+                archive_dir(entry.path().to_string_lossy().as_ref(), dry_run)?;
+            }
         }
     }
 
@@ -117,7 +121,9 @@ mod tests {
 
     use chrono::{Local, TimeZone};
 
-    use super::{age_bucket, age_bucket_from_modification_time, starts_with_three_digits};
+    use crate::archive_year_dir::Bucket;
+
+    use super::{age_bucket, starts_with_three_digits};
 
     #[test]
     fn matches_names_starting_with_three_digits() {
@@ -131,26 +137,27 @@ mod tests {
     #[test]
     fn classifies_age_into_expected_buckets() {
         let year = Duration::from_secs(365 * 24 * 60 * 60);
+        let now = SystemTime::now();
 
         assert_eq!(
-            age_bucket(year / 2),
-            "letzte Aenderung innerhalb der letzten 2 Jahre"
+            age_bucket(now - year / 2, now),
+            Bucket::Last2Years
         );
         assert_eq!(
-            age_bucket(year * 2),
-            "letzte Aenderung innerhalb der letzten 2 Jahre"
+            age_bucket(now - year * 2, now),
+            Bucket::Last2Years
         );
         assert_eq!(
-            age_bucket(year * 3),
-            "letzte Aenderung vor mehr als 2 Jahren"
+            age_bucket(now - year * 3, now),
+            Bucket::MoreThan2Years
         );
         assert_eq!(
-            age_bucket(year * 4),
-            "letzte Aenderung vor mehr als 2 Jahren"
+            age_bucket(now - year * 4, now),
+            Bucket::MoreThan2Years
         );
         assert_eq!(
-            age_bucket(year * 5),
-            "letzte Aenderung vor mehr als 4 Jahren"
+            age_bucket(now - year * 5, now),
+            Bucket::MoreThan4Years
         );
     }
 
@@ -170,8 +177,8 @@ mod tests {
                 .expect("valid test date"),
         );
         assert_eq!(
-            age_bucket_from_modification_time(seven_calendar_years_ago_but_after_january, now),
-            "letzte Aenderung vor mehr als 6 Jahren"
+            age_bucket(seven_calendar_years_ago_but_after_january, now),
+            Bucket::MoreThan6Years
         );
 
         let eight_calendar_years_ago_but_after_january = SystemTime::from(
@@ -181,8 +188,8 @@ mod tests {
                 .expect("valid test date"),
         );
         assert_eq!(
-            age_bucket_from_modification_time(eight_calendar_years_ago_but_after_january, now),
-            "letzte Aenderung vor mehr als 8 Jahren"
+            age_bucket(eight_calendar_years_ago_but_after_january, now),
+            Bucket::MoreThan8Years
         );
     }
 }
