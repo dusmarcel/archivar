@@ -1,6 +1,5 @@
-//use std::fs::create_dir;
+use std::fs;
 use rusqlite::Connection;
-use walkdir::WalkDir;
 
 use archivar::archive_top_dir::archive_top_dir;
 
@@ -30,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "CREATE TABLE IF NOT EXISTS archive (
             year INTEGER NOT NULL,
             no INTEGER NOT NULL,
-            change_time TEXT NOT NULL,
+            change_time REAL NOT NULL,
             hash INTEGER UNIQUE,
             PRIMARY KEY (year, no)
         )",
@@ -39,22 +38,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     for dir in ["kanzlei", "ablage2", "ablage4", "ablage6", "ablage8"] {
         let mut found = false;
-        let walker = WalkDir::new(".").max_depth(1).into_iter();
-        for entry in walker {
+        for entry in fs::read_dir(".")? {
             if let Ok(entry) = entry {
-                if entry.file_type().is_dir() {
-                    if let Some(name) = entry.path().file_name() {
-                        if name == dir {
-                            found = true;
-                        }
+                if entry.file_type()?.is_dir() {
+                    if entry.file_name().to_string_lossy() == dir {
+                        found = true;
+                        archive_top_dir(entry.path(), d, r, &conn)?;
+                        break;
                     }
                 }
             }
         }
 
-        if found {
-            archive_top_dir(dir, d, r, &conn)?;           
-        } else {
+        if !found {
             println!("Directory '{}' not found, skipping.", dir);
         }
     }

@@ -1,11 +1,11 @@
-use std::fs;
-use std::time::{Duration, SystemTime};
+use std::{fs, path::PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{Datelike, Local, TimeZone};
 use walkdir::WalkDir;
 use rusqlite::Connection;
 
-use crate::archive_dir::archive_dir;
+use crate::create_archive::create_archive;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 enum Bucket {
@@ -69,11 +69,16 @@ fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Erro
     Ok(fs::read_dir(path)?.next().is_none())
 }
 
-pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+pub fn archive_year_dir(dir: PathBuf, dry_run: bool, remove: bool, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Got year directory: {}", dir.display());
+    let year = dir.file_name().unwrap_or_default().to_string_lossy().parse::<u16>()?;
+    println!("Got year: {}", year);
+    
     let now = SystemTime::now();
 
-    for entry in fs::read_dir(name)? {
+    for entry in fs::read_dir(dir)? {
         let entry = entry?;
+        println!("Got entry: {}", entry.path().display());
         let file_type = entry.file_type()?;
 
         if !file_type.is_dir() {
@@ -105,10 +110,22 @@ pub fn archive_year_dir(name: &str, dry_run: bool, remove: bool, conn: &Connecti
 
         if let Some(latest) = latest_content_modification_time(&entry.path())? {
             let bucket = age_bucket(latest, now);
-
-            println!("{}: {:#?}", entry.path().display(), bucket);
+            let no = dir_name.chars().take(3).collect::<String>().parse::<u16>()?;
             if bucket > Bucket::Last2Years {
-                archive_dir(entry.path().to_string_lossy().as_ref(), dry_run)?;
+                if dry_run {
+                    println!("Would archive directory: {}", entry.path().display());
+                } else {
+                    let _archive = create_archive(entry.path().to_string_lossy().as_ref())?;
+                }
+            } else {
+                if dry_run {
+                    println!("Would execute SQL: INSERT INTO archive (year, no, change_time, hash) VALUES ({}, {}, {}, 0) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash", year, no, latest.duration_since(UNIX_EPOCH)?.as_secs_f64());
+                } else {
+                    conn.execute(
+                    "INSERT INTO archive (year, no, change_time, hash) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
+                    (year, no, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), 0)
+                    )?;
+                }
             }
         }
     }
