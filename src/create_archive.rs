@@ -1,5 +1,5 @@
-use std::{env, fs::File};
 use std::path::Path;
+use std::{env, fs::File};
 
 use tar::Builder;
 use xz2::write::XzEncoder;
@@ -10,7 +10,11 @@ pub fn create_archive(name: &str) -> Result<File, Box<dyn std::error::Error>> {
     let dir_name = path
         .file_name()
         .ok_or("directory path must have a final path component")?;
-    let archive_path = parent.join(format!("{}/{}.tar.xz", env::temp_dir().to_string_lossy(), dir_name.to_string_lossy()));
+    let archive_path = parent.join(format!(
+        "{}/{}.tar.xz",
+        env::temp_dir().to_string_lossy(),
+        dir_name.to_string_lossy()
+    ));
     println!("Creating archive at: {}", archive_path.display());
     let archive_file = File::create(&archive_path).unwrap();
     let encoder = XzEncoder::new(&archive_file, 6);
@@ -19,5 +23,6 @@ pub fn create_archive(name: &str) -> Result<File, Box<dyn std::error::Error>> {
     let encoder = builder.into_inner()?;
     encoder.finish()?;
 
+    let archive_file = File::open(&archive_path)?;
     Ok(archive_file)
 }

@@ -1,9 +1,12 @@
-use std::{fs, path::PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{fs, io, path::PathBuf};
 
 use chrono::{Datelike, Local, TimeZone};
-use walkdir::WalkDir;
+use digest_io::IoWrapper;
 use rusqlite::Connection;
+use rusqlite::types::Null;
+use sha2::{Digest, Sha256};
+use walkdir::WalkDir;
 
 use crate::create_archive::create_archive;
 
@@ -13,12 +16,11 @@ enum Bucket {
     MoreThan2Years,
     MoreThan4Years,
     MoreThan6Years,
-    MoreThan8Years
+    MoreThan8Years,
 }
 
 fn starts_with_three_digits(dir_name: &str) -> bool {
-    dir_name.chars().take(3).count() == 3
-        && dir_name.chars().take(3).all(|c| c.is_ascii_digit())
+    dir_name.chars().take(3).count() == 3 && dir_name.chars().take(3).all(|c| c.is_ascii_digit())
 }
 
 fn age_bucket(latest: SystemTime, now: SystemTime) -> Bucket {
@@ -69,11 +71,20 @@ fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Erro
     Ok(fs::read_dir(path)?.next().is_none())
 }
 
-pub fn archive_year_dir(dir: PathBuf, dry_run: bool, remove: bool, conn: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+pub fn archive_year_dir(
+    dir: PathBuf,
+    dry_run: bool,
+    remove: bool,
+    conn: &Connection,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Got year directory: {}", dir.display());
-    let year = dir.file_name().unwrap_or_default().to_string_lossy().parse::<u16>()?;
+    let year = dir
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .parse::<u16>()?;
     println!("Got year: {}", year);
-    
+
     let now = SystemTime::now();
 
     for entry in fs::read_dir(dir)? {
@@ -110,20 +121,44 @@ pub fn archive_year_dir(dir: PathBuf, dry_run: bool, remove: bool, conn: &Connec
 
         if let Some(latest) = latest_content_modification_time(&entry.path())? {
             let bucket = age_bucket(latest, now);
-            let no = dir_name.chars().take(3).collect::<String>().parse::<u16>()?;
+            let no = dir_name
+                .chars()
+                .take(3)
+                .collect::<String>()
+                .parse::<u16>()?;
+            let name = entry
+                .path()
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
             if bucket > Bucket::Last2Years {
                 if dry_run {
                     println!("Would archive directory: {}", entry.path().display());
                 } else {
-                    let _archive = create_archive(entry.path().to_string_lossy().as_ref())?;
+                    let mut archive = create_archive(entry.path().to_string_lossy().as_ref())?;
+                    let mut writer = IoWrapper(Sha256::new());
+                    io::copy(&mut archive, &mut writer)?;
+                    let hsh: [u8; 32] = writer.0.finalize().into();
+
+                    conn.execute(
+                    "INSERT INTO archive (year, no, name, change_time, hash) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
+                    (year, no, name, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), hsh)
+                    )?;
                 }
             } else {
                 if dry_run {
-                    println!("Would execute SQL: INSERT INTO archive (year, no, change_time, hash) VALUES ({}, {}, {}, 0) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash", year, no, latest.duration_since(UNIX_EPOCH)?.as_secs_f64());
+                    println!(
+                        "Would execute SQL: INSERT INTO archive (year, no, name, change_time, hash) VALUES ({}, {}, {}, {}, NULL) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
+                        year,
+                        no,
+                        name,
+                        latest.duration_since(UNIX_EPOCH)?.as_secs_f64()
+                    );
                 } else {
                     conn.execute(
-                    "INSERT INTO archive (year, no, change_time, hash) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
-                    (year, no, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), 0)
+                    "INSERT INTO archive (year, no, name, change_time, hash) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
+                    (year, no, name, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), Null)
                     )?;
                 }
             }
@@ -157,26 +192,11 @@ mod tests {
         let year = Duration::from_secs(365 * 24 * 60 * 60);
         let now = SystemTime::now();
 
-        assert_eq!(
-            age_bucket(now - year / 2, now),
-            Bucket::Last2Years
-        );
-        assert_eq!(
-            age_bucket(now - year * 2, now),
-            Bucket::Last2Years
-        );
-        assert_eq!(
-            age_bucket(now - year * 3, now),
-            Bucket::MoreThan2Years
-        );
-        assert_eq!(
-            age_bucket(now - year * 4, now),
-            Bucket::MoreThan2Years
-        );
-        assert_eq!(
-            age_bucket(now - year * 5, now),
-            Bucket::MoreThan4Years
-        );
+        assert_eq!(age_bucket(now - year / 2, now), Bucket::Last2Years);
+        assert_eq!(age_bucket(now - year * 2, now), Bucket::Last2Years);
+        assert_eq!(age_bucket(now - year * 3, now), Bucket::MoreThan2Years);
+        assert_eq!(age_bucket(now - year * 4, now), Bucket::MoreThan2Years);
+        assert_eq!(age_bucket(now - year * 5, now), Bucket::MoreThan4Years);
     }
 
     #[test]

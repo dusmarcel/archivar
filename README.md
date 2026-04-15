@@ -1,20 +1,23 @@
 # archivar
 
-`archivar` ist ein kleines Rust-CLI-Programm zur Analyse einer festen Ablagestruktur.
+`archivar` ist ein Rust-CLI zum Durchlaufen einer festen Ablagestruktur und zum Erfassen alter Vorgangsordner in einer SQLite-Datenbank.
 
-Aktuell durchsucht das Programm feste Top-Level-Verzeichnisse im aktuellen Arbeitsverzeichnis und meldet fuer passende Unterordner, wie alt deren letzter inhaltlicher Stand ist.
+Das Programm arbeitet relativ zum aktuellen Arbeitsverzeichnis. Es sucht nach bekannten Wurzelverzeichnissen, durchlaeuft Jahresordner, erkennt leere Mandantenordner und berechnet fuer aeltere Eintraege einen SHA-256-Hash eines erzeugten `tar.xz`-Archivs.
 
-## Erwartete Verzeichnisstruktur
+## Aktuelles Verhalten
 
-Das Programm wird im Projekt- oder Arbeitsverzeichnis gestartet und verarbeitet diese Top-Level-Verzeichnisse, falls sie vorhanden sind:
+- `kanzlei` wird direkt als Top-Level-Verzeichnis verarbeitet.
+- `ablage` wird ebenfalls gesucht. Darunter verarbeitet der aktuelle Code direkt die Unterverzeichnisse `ablage/2`, `ablage/4`, `ablage/6` und `ablage/8`.
+- In `kanzlei` und in diesen `ablage`-Buckets werden nur direkte Unterordner mit genau zwei Ziffern als Jahresordner akzeptiert, zum Beispiel `24` oder `25`.
+- Innerhalb eines Jahresordners werden nur direkte Unterordner verarbeitet, deren Name mit drei Ziffern beginnt, zum Beispiel `123 Mandant A`.
+- Fuer jeden passenden Mandantenordner wird die letzte inhaltliche Aenderung ueber den gesamten Unterbaum bestimmt.
+- Leere Mandantenordner werden je nach Optionen nur gemeldet oder geloescht.
+- Ordner, die aelter als 2 Jahre sind, werden archiviert: Es wird ein `tar.xz`-Archiv erzeugt, daraus ein SHA-256-Hash berechnet und der Datensatz in SQLite gespeichert.
+- Ordner innerhalb der letzten 2 Jahre werden ebenfalls in SQLite eingetragen, aber mit `NULL` in der Hash-Spalte.
 
-- `kanzlei`
-- `ablage2`
-- `ablage4`
-- `ablage6`
-- `ablage8`
+## Verzeichnisstruktur
 
-Beispielstruktur:
+Beispiel fuer `kanzlei`:
 
 ```text
 .
@@ -26,69 +29,84 @@ Beispielstruktur:
         └── 789 Mandant C
 ```
 
-Die Regeln sind:
+Beispiel fuer `ablage`:
 
-- Unter jedem vorhandenen Top-Level-Verzeichnis werden nur direkte Unterverzeichnisse betrachtet, deren Name aus genau zwei Ziffern besteht, zum Beispiel `24` oder `25`.
-- Innerhalb dieser Jahresverzeichnisse werden nur direkte Unterverzeichnisse betrachtet, deren Name mit genau drei Ziffern beginnt, zum Beispiel `123 Mandant A`.
+```text
+.
+└── ablage
+    ├── 2
+    │   └── 24
+    │       └── 123 Mandant A
+    ├── 4
+    │   └── 23
+    │       └── 456 Mandant B
+    ├── 6
+    │   └── 22
+    └── 8
+        └── 21
+```
 
-## Aktuelles Verhalten
+## Altersklassen
 
-Fuer jedes passende Verzeichnis innerhalb eines Jahresordners gibt das Programm eine Zeile auf `stdout` aus.
+Die Altersbewertung basiert auf der letzten Aenderung innerhalb des Verzeichnisinhalts, nicht auf der Aenderung des Mandantenordners selbst.
 
-Die Altersbewertung basiert auf der letzten Aenderung im Inhalt des Verzeichnisses:
+Es gibt diese Buckets:
 
-- Das Aenderungsdatum des Verzeichnisses selbst wird nicht beruecksichtigt.
-- Beruecksichtigt werden nur Dateien und Unterverzeichnisse innerhalb des Verzeichnisses.
-- Ist ein Verzeichnis leer, wird das explizit gemeldet oder optional entfernt.
+- innerhalb der letzten 2 Jahre
+- mehr als 2 Jahre
+- mehr als 4 Jahre
+- mehr als 6 Jahre
+- mehr als 8 Jahre
 
-Die Ausgabe verwendet diese Altersstufen:
+Fuer die Stufen `mehr als 6 Jahre` und `mehr als 8 Jahre` gilt eine Sonderregel: Statt des exakten Aenderungsdatums wird der naechste `1. Januar` nach der letzten Aenderung als Stichtag verwendet.
 
-- `letzte Aenderung innerhalb der letzten 2 Jahre`
-- `letzte Aenderung vor mehr als 2 Jahren`
-- `letzte Aenderung vor mehr als 4 Jahren`
-- `letzte Aenderung vor mehr als 6 Jahren`
-- `letzte Aenderung vor mehr als 8 Jahren`
+## Datenbank
 
-Fuer die Stufen `mehr als 6 Jahren` und `mehr als 8 Jahren` gilt eine Sonderregel:
+Im aktuellen Arbeitsverzeichnis wird `archivar.db` angelegt oder wiederverwendet.
 
-- Massgeblich ist nicht direkt das Datum der letzten Aenderung.
-- Stattdessen wird der naechste `1. Januar` nach dieser letzten Aenderung als Stichtag verwendet.
+Die Tabelle `archive` hat aktuell diese Struktur:
 
-Leere Verzeichnisse verhalten sich so:
+```sql
+CREATE TABLE IF NOT EXISTS archive (
+    year INTEGER NOT NULL,
+    no INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    change_time REAL NOT NULL,
+    hash BLOB UNIQUE CHECK (length(hash) = 32),
+    PRIMARY KEY (year, no)
+)
+```
 
-- Ohne `--remove` werden sie nur gemeldet.
-- Mit `--remove` werden sie geloescht.
-- Mit `--dry-run --remove` wird nur ausgegeben, was geloescht wuerde.
+Beim Schreiben wird `INSERT ... ON CONFLICT(year, no) DO UPDATE` verwendet.
 
-## Build Und Ausfuehrung
+## CLI
 
 Alle Befehle werden im Repository-Wurzelverzeichnis ausgefuehrt.
 
 ```bash
-cargo build
 cargo run
 cargo run -- --dry-run
 cargo run -- --remove
+cargo run -- --dry-run --remove
 ```
 
-Tests und Pruefungen:
+Optionen:
+
+- `-d`, `--dry-run`: nur ausgeben, was passieren wuerde
+- `-r`, `--remove`: leere Mandantenordner loeschen
+
+## Entwicklung
 
 ```bash
+cargo build
 cargo test
 cargo fmt
 cargo clippy --all-targets --all-features
 ```
 
-## Beispielausgabe
-
-```text
-kanzlei/24/123 Mandant A: letzte Aenderung vor mehr als 4 Jahren
-kanzlei/24/456 Mandant B: Empty directory (not removed): kanzlei/24/456 Mandant B
-ablage2/25/789 Mandant C: letzte Aenderung innerhalb der letzten 2 Jahre
-```
-
 ## Hinweise
 
-- Fehlende Top-Level-Verzeichnisse fuehren nicht zum Abbruch. Stattdessen gibt das Programm eine Meldung wie `Directory 'kanzlei' not found, skipping.` aus.
-- Beim Start wird eine SQLite-Datenbank `archivar.db` im aktuellen Arbeitsverzeichnis angelegt oder wiederverwendet.
-- Die eigentliche Archivierungslogik ist noch nicht implementiert; der aktuelle Stand analysiert und klassifiziert nur Verzeichnisse.
+- Fehlende Wurzelverzeichnisse werden nur gemeldet und uebersprungen.
+- Fehlende Bucket-Unterverzeichnisse in `ablage` werden gemeldet und uebersprungen.
+- Fuer die Archivierung wird temporaer ein `tar.xz`-Archiv erzeugt und daraus der SHA-256-Hash berechnet.
+- Die Programmausgabe ist aktuell eher debug-lastig und enthaelt mehrere `println!`-Meldungen waehrend des Durchlaufs.
