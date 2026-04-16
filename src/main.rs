@@ -1,9 +1,10 @@
+use anyhow::Result;
 use rusqlite::Connection;
 use std::fs;
 
 use archivar::archive_top_dir::archive_top_dir;
 
-fn find_directory(name: &str) -> Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>> {
+fn find_directory(name: &str) -> Result<Option<std::path::PathBuf>> {
     for entry in fs::read_dir(".")? {
         let entry = entry?;
         if entry.file_type()?.is_dir() && entry.file_name().to_string_lossy() == name {
@@ -14,7 +15,7 @@ fn find_directory(name: &str) -> Result<Option<std::path::PathBuf>, Box<dyn std:
     Ok(None)
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let matches = clap::Command::new("Archivar")
         .version("0.1.0")
         .author("Marcel Keienborg <marcel@keienb.org>")

@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::{fs, io, path::PathBuf};
 
+use anyhow::Result;
 use chrono::{Datelike, Local, TimeZone};
 use digest_io::IoWrapper;
 use rusqlite::Connection;
@@ -51,7 +52,7 @@ fn age_bucket(latest: SystemTime, now: SystemTime) -> Bucket {
 
 fn latest_content_modification_time(
     path: &std::path::Path,
-) -> Result<Option<SystemTime>, Box<dyn std::error::Error>> {
+) -> Result<Option<SystemTime>> {
     let mut latest = None;
 
     for entry in WalkDir::new(path).min_depth(1) {
@@ -76,7 +77,7 @@ pub fn archive_year_dir(
     dry_run: bool,
     remove: bool,
     conn: &Connection,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     println!("Got year directory: {}", dir.display());
     let year = dir
         .file_name()

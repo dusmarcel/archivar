@@ -1,5 +1,6 @@
 use std::{fs, path::PathBuf};
 
+use anyhow::Result;
 use rusqlite::Connection;
 
 use crate::archive_year_dir::archive_year_dir;
@@ -13,7 +14,7 @@ pub fn archive_top_dir(
     dry_run: bool,
     remove: bool,
     conn: &Connection,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if dry_run {
         println!("dry run!");
     }
