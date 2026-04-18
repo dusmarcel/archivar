@@ -56,6 +56,9 @@ fn main() -> Result<()> {
         anyhow::bail!("Provided path '{}' has to be a directory, but it does'nt seem to be one", p.display());
     }
 
+    let adir = p.join("ablage");
+    println!("Directory to store archives: {}", adir.display());
+
     let conn = Connection::open(p.join("archivar.db"))?;
     conn.execute(
         "CREATE TABLE IF NOT EXISTS archive (
@@ -70,7 +73,7 @@ fn main() -> Result<()> {
     )?;
 
     if let Some(kanzlei_dir) = find_directory(&p, "kanzlei")? {
-        archive_top_dir(kanzlei_dir, d, r, &conn)?;
+        archive_top_dir(kanzlei_dir, &adir, d, r, &conn)?;
     } else {
         println!("Directory 'kanzlei' not found, skipping.");
     }
@@ -79,7 +82,7 @@ fn main() -> Result<()> {
         for bucket in ["2", "4", "6", "8"] {
             let bucket_dir = ablage_dir.join(bucket);
             if bucket_dir.is_dir() {
-                archive_top_dir(bucket_dir, d, r, &conn)?;
+                archive_top_dir(bucket_dir, &adir, d, r, &conn)?;
             } else {
                 println!("Subdirectory '{}' not found in 'ablage', skipping.", bucket);
             }

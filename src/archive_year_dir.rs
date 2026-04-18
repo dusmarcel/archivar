@@ -9,7 +9,7 @@ use rusqlite::types::Null;
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-use crate::create_archive::create_archive;
+use crate::{create_archive::create_archive, archive_archive::archive_archive};
 
 #[derive(Debug, PartialEq, PartialOrd)]
 enum Bucket {
@@ -83,6 +83,7 @@ fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Erro
 
 pub fn archive_year_dir(
     dir: PathBuf,
+    adir: &PathBuf,
     dry_run: bool,
     remove: bool,
     conn: &Connection,
@@ -104,7 +105,7 @@ pub fn archive_year_dir(
 
         if !file_type.is_dir() {
             if entry.file_type()?.is_file() && is_xz_archive(&entry.path()) {
-                println!("Found archive file: {}", entry.path().display());
+                archive_archive(&entry.path(), adir, dry_run, conn)?;
             }
             continue;
         }
@@ -162,24 +163,32 @@ pub fn archive_year_dir(
                     match bucket {
                         Bucket::Last2Years => (),
                         Bucket::MoreThan2Years => {
-                            let p = PathBuf::from("ablage/2");
+                            let p = adir.join("2");
                             fs::create_dir_all(&p)?;
-                            fs::rename(&archive_name, p.join(file_name))?;
+                            fs::copy(&archive_name, p.join(file_name))?;
+                            fs::remove_file(&archive_name)?;
+                            fs::remove_dir_all(entry.path())?;
                         },
                         Bucket::MoreThan4Years => {
-                            let p = PathBuf::from("ablage/4");
+                            let p = adir.join("4");
                             fs::create_dir_all(&p)?;
-                            fs::rename(&archive_name, p.join(file_name))?;
+                            fs::copy(&archive_name, p.join(file_name))?;
+                            fs::remove_file(&archive_name)?;
+                            fs::remove_dir_all(entry.path())?;
                         },
                         Bucket::MoreThan6Years => {
-                            let p = PathBuf::from("ablage/6");
+                            let p = adir.join("6");
                             fs::create_dir_all(&p)?;
-                            fs::rename(&archive_name, p.join(file_name))?;
+                            fs::copy(&archive_name, p.join(file_name))?;
+                            fs::remove_file(&archive_name)?;
+                            fs::remove_dir_all(entry.path())?;
                         },
                         Bucket::MoreThan8Years => {
-                            let p = PathBuf::from("ablage/8");
+                            let p = adir.join("8");
                             fs::create_dir_all(&p)?;
-                            fs::rename(&archive_name, p.join(file_name))?;   
+                            fs::copy(&archive_name, p.join(file_name))?;   
+                            fs::remove_file(&archive_name)?;
+                            fs::remove_dir_all(entry.path())?;
                         }
                     }
 

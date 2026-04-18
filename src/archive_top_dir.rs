@@ -11,6 +11,7 @@ fn is_year_dir(dir_name: &str) -> bool {
 
 pub fn archive_top_dir(
     dir: PathBuf,
+    adir: &PathBuf,
     dry_run: bool,
     remove: bool,
     conn: &Connection,
@@ -25,7 +26,7 @@ pub fn archive_top_dir(
             if let Some(name) = entry.path().file_name() {
                 if let Some(name) = name.to_str() {
                     if is_year_dir(name) {
-                        archive_year_dir(entry.path(), dry_run, remove, conn)?;
+                        archive_year_dir(entry.path(), adir, dry_run, remove, conn)?;
                     }
                 }
             }
