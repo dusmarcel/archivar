@@ -137,15 +137,41 @@ pub fn archive_year_dir(
                 if dry_run {
                     println!("Would archive directory: {}", entry.path().display());
                 } else {
-                    let mut archive = create_archive(entry.path().to_string_lossy().as_ref())?;
-                    let mut writer = IoWrapper(Sha256::new());
-                    io::copy(&mut archive, &mut writer)?;
-                    let hsh: [u8; 32] = writer.0.finalize().into();
+                    let (mut archive, archive_name) = create_archive(entry.path().to_string_lossy().as_ref())?;
+                    if let Some(file_name) = archive_name.file_name() {
+                        let mut writer = IoWrapper(Sha256::new());
+                        io::copy(&mut archive, &mut writer)?;
+                        let hsh: [u8; 32] = writer.0.finalize().into();
 
-                    conn.execute(
-                    "INSERT INTO archive (year, no, name, change_time, hash) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
-                    (year, no, name, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), hsh)
-                    )?;
+                        match bucket {
+                            Bucket::Last2Years => (),
+                            Bucket::MoreThan2Years => {
+                                let p = PathBuf::from("ablage/2");
+                                fs::create_dir_all(&p)?;
+                                fs::rename(&archive_name, p.join(file_name))?;
+                            },
+                            Bucket::MoreThan4Years => {
+                                let p = PathBuf::from("ablage/4");
+                                fs::create_dir_all(&p)?;
+                                fs::rename(&archive_name, p.join(file_name))?;
+                            },
+                            Bucket::MoreThan6Years => {
+                                let p = PathBuf::from("ablage/6");
+                                fs::create_dir_all(&p)?;
+                                fs::rename(&archive_name, p.join(file_name))?;
+                            },
+                            Bucket::MoreThan8Years => {
+                                let p = PathBuf::from("ablage/8");
+                                fs::create_dir_all(&p)?;
+                                fs::rename(&archive_name, p.join(file_name))?;   
+                            }
+                        }
+
+                        conn.execute(
+                        "INSERT INTO archive (year, no, name, change_time, hash) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(year, no) DO UPDATE SET change_time = excluded.change_time, hash = excluded.hash",
+                        (year, no, name, latest.duration_since(UNIX_EPOCH)?.as_secs_f64(), hsh)
+                        )?;
+                    }
                 }
             } else {
                 if dry_run {

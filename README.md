@@ -2,7 +2,7 @@
 
 `archivar` ist ein Rust-CLI zum Durchlaufen einer festen Ablagestruktur und zum Erfassen alter Vorgangsordner in einer SQLite-Datenbank.
 
-Das Programm arbeitet relativ zum aktuellen Arbeitsverzeichnis. Es sucht nach bekannten Wurzelverzeichnissen, durchlaeuft Jahresordner, erkennt leere Mandantenordner und berechnet fuer aeltere Eintraege einen SHA-256-Hash eines erzeugten `tar.xz`-Archivs.
+Das Programm arbeitet relativ zum aktuellen Arbeitsverzeichnis (oder einem per `-p` angegebenen Pfad). Es sucht nach bekannten Wurzelverzeichnissen, durchlaeuft Jahresordner, erkennt leere Mandantenordner und berechnet fuer aeltere Eintraege einen SHA-256-Hash eines erzeugten `tar.xz`-Archivs.
 
 ## Aktuelles Verhalten
 
@@ -12,7 +12,7 @@ Das Programm arbeitet relativ zum aktuellen Arbeitsverzeichnis. Es sucht nach be
 - Innerhalb eines Jahresordners werden nur direkte Unterordner verarbeitet, deren Name mit drei Ziffern beginnt, zum Beispiel `123 Mandant A`.
 - Fuer jeden passenden Mandantenordner wird die letzte inhaltliche Aenderung ueber den gesamten Unterbaum bestimmt.
 - Leere Mandantenordner werden je nach Optionen nur gemeldet oder geloescht.
-- Ordner, die aelter als 2 Jahre sind, werden archiviert: Es wird ein `tar.xz`-Archiv erzeugt, daraus ein SHA-256-Hash berechnet und der Datensatz in SQLite gespeichert.
+- Ordner, die aelter als 2 Jahre sind, werden archiviert: Es wird ein `tar.xz`-Archiv in `$TMPDIR` erzeugt, daraus ein SHA-256-Hash berechnet, das Archiv in das passende `ablage/N`-Verzeichnis verschoben und der Datensatz in SQLite gespeichert.
 - Ordner innerhalb der letzten 2 Jahre werden ebenfalls in SQLite eingetragen, aber mit `NULL` in der Hash-Spalte.
 
 ## Verzeichnisstruktur
@@ -53,16 +53,16 @@ Die Altersbewertung basiert auf der letzten Aenderung innerhalb des Verzeichnisi
 Es gibt diese Buckets:
 
 - innerhalb der letzten 2 Jahre
-- mehr als 2 Jahre
-- mehr als 4 Jahre
-- mehr als 6 Jahre
-- mehr als 8 Jahre
+- mehr als 2 Jahre → `ablage/2`
+- mehr als 4 Jahre → `ablage/4`
+- mehr als 6 Jahre → `ablage/6`
+- mehr als 8 Jahre → `ablage/8`
 
 Fuer die Stufen `mehr als 6 Jahre` und `mehr als 8 Jahre` gilt eine Sonderregel: Statt des exakten Aenderungsdatums wird der naechste `1. Januar` nach der letzten Aenderung als Stichtag verwendet.
 
 ## Datenbank
 
-Im aktuellen Arbeitsverzeichnis wird `archivar.db` angelegt oder wiederverwendet.
+Im Arbeitsverzeichnis (oder dem per `-p` angegebenen Pfad) wird `archivar.db` angelegt oder wiederverwendet.
 
 Die Tabelle `archive` hat aktuell diese Struktur:
 
@@ -81,19 +81,19 @@ Beim Schreiben wird `INSERT ... ON CONFLICT(year, no) DO UPDATE` verwendet.
 
 ## CLI
 
-Alle Befehle werden im Repository-Wurzelverzeichnis ausgefuehrt.
-
 ```bash
 cargo run
 cargo run -- --dry-run
 cargo run -- --remove
 cargo run -- --dry-run --remove
+cargo run -- --path /pfad/zum/archiv
 ```
 
 Optionen:
 
 - `-d`, `--dry-run`: nur ausgeben, was passieren wuerde
 - `-r`, `--remove`: leere Mandantenordner loeschen
+- `-p`, `--path`: Arbeitsverzeichnis angeben (Standard: aktuelles Verzeichnis)
 
 ## Entwicklung
 
@@ -108,5 +108,5 @@ cargo clippy --all-targets --all-features
 
 - Fehlende Wurzelverzeichnisse werden nur gemeldet und uebersprungen.
 - Fehlende Bucket-Unterverzeichnisse in `ablage` werden gemeldet und uebersprungen.
-- Fuer die Archivierung wird temporaer ein `tar.xz`-Archiv erzeugt und daraus der SHA-256-Hash berechnet.
+- Archive werden zunaechst in `$TMPDIR` erstellt, dann nach `ablage/N` verschoben; das Zielverzeichnis wird bei Bedarf angelegt.
 - Die Programmausgabe ist aktuell eher debug-lastig und enthaelt mehrere `println!`-Meldungen waehrend des Durchlaufs.

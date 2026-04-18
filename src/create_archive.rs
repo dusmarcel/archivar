@@ -1,11 +1,11 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{env, fs::File};
 
 use anyhow::{Result, anyhow};
 use tar::Builder;
 use xz2::write::XzEncoder;
 
-pub fn create_archive(name: &str) -> Result<File> {
+pub fn create_archive(name: &str) -> Result<(File, PathBuf)> {
     let path = Path::new(name);
     let parent = path.parent().unwrap_or(Path::new("."));
     let dir_name = path
@@ -25,5 +25,5 @@ pub fn create_archive(name: &str) -> Result<File> {
     encoder.finish()?;
 
     let archive_file = File::open(&archive_path)?;
-    Ok(archive_file)
+    Ok((archive_file, archive_path))
 }
