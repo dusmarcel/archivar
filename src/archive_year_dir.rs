@@ -137,7 +137,7 @@ pub fn archive_year_dir(
                 if dry_run {
                     println!("Would archive directory: {}", entry.path().display());
                 } else {
-                    let (mut archive, archive_name) = create_archive(entry.path().to_string_lossy().as_ref())?;
+                    let (mut archive, archive_name) = create_archive(entry.path().to_string_lossy().as_ref(), year)?;
                     let Some(file_name) = archive_name.file_name() else {
                         eprintln!("Failed to determine file name for archive '{}', skipping", archive_name.display());
                         continue;
