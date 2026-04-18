@@ -1,5 +1,5 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{fs, io, path::PathBuf};
+use std::{fs, io, io::Read, path::PathBuf};
 
 use anyhow::Result;
 use chrono::{Datelike, Local, TimeZone};
@@ -18,6 +18,15 @@ enum Bucket {
     MoreThan4Years,
     MoreThan6Years,
     MoreThan8Years,
+}
+
+fn is_xz_archive(p: &std::path::Path) -> bool {
+    let Ok(mut file) = fs::File::open(p) else {
+        return false;
+    };
+    let mut magic = [0u8; 6];
+    file.read_exact(&mut magic).unwrap_or(());
+    magic == [0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00]
 }
 
 fn starts_with_three_digits(dir_name: &str) -> bool {
@@ -94,6 +103,9 @@ pub fn archive_year_dir(
         let file_type = entry.file_type()?;
 
         if !file_type.is_dir() {
+            if entry.file_type()?.is_file() && is_xz_archive(&entry.path()) {
+                println!("Found archive file: {}", entry.path().display());
+            }
             continue;
         }
 
