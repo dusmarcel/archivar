@@ -61,14 +61,19 @@ fn main() -> Result<()> {
 
     let conn = Connection::open(p.join("archivar.db"))?;
     conn.execute(
+        // "CREATE TABLE IF NOT EXISTS archive (
+        //     year INTEGER NOT NULL,
+        //     no INTEGER NOT NULL,
+        //     name TEXT NOT NULL,
+        //     change_time REAL NOT NULL,
+        //     hash BLOB UNIQUE CHECK (length(hash) = 32),
+        //     PRIMARY KEY (year, no)
+        // )",
         "CREATE TABLE IF NOT EXISTS archive (
-            year INTEGER NOT NULL,
-            no INTEGER NOT NULL,
-            name TEXT NOT NULL,
+            name TEXT NOT NULL PRIMARY KEY,
             change_time REAL NOT NULL,
-            hash BLOB UNIQUE CHECK (length(hash) = 32),
-            PRIMARY KEY (year, no)
-        )",
+            hash BLOB UNIQUE CHECK (length(hash) = 32)
+        )",        
         (),
     )?;
 

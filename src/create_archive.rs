@@ -12,15 +12,16 @@ pub fn create_archive(name: &str, year: u16) -> Result<(File, PathBuf)> {
         .file_name()
         .ok_or(anyhow!("directory path must have a final path component"))?;
     let archive_path = parent.join(format!(
-        "{}/{}_{}__{:x}{:x}.tar.xz",
+        //"{}/{}_{}__{:x}{:x}.tar.xz",
+        "{}/{}_{}.tar.xz",
         env::temp_dir().to_string_lossy(),
         year,
-        dir_name.to_string_lossy(),
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .subsec_nanos()
+        dir_name.to_string_lossy() //,
+        // std::process::id(),
+        // std::time::SystemTime::now()
+        //    .duration_since(std::time::UNIX_EPOCH)
+        //    .unwrap()
+        //    .subsec_nanos()
     ));
     println!("Creating archive at: {}", archive_path.display());
     let archive_file = File::create(&archive_path).unwrap();
