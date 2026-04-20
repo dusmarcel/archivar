@@ -1,8 +1,9 @@
 use std::time::{Duration, SystemTime};
 use chrono::{Datelike, Local, TimeZone};
 
-pub fn age_bucket(latest: SystemTime, now: SystemTime) -> u8 {
+pub fn age_bucket(latest: SystemTime) -> u8 {
     const YEAR: Duration = Duration::from_secs(365 * 24 * 60 * 60);
+    let now = SystemTime::now();
 
     let age = now.duration_since(latest).unwrap_or(Duration::ZERO);
     let latest_local = chrono::DateTime::<Local>::from(latest);
