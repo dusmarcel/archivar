@@ -1,16 +1,16 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::UNIX_EPOCH;
 use std::{fs, io, io::Read, path::PathBuf};
 
 use anyhow::Result;
 use digest_io::IoWrapper;
 use rusqlite::{Connection, types::Null};
 use sha2::{Digest, Sha256};
-use walkdir::WalkDir;
 
 use crate::{
     create_archive::create_archive,
     archive_archive::archive_archive,
     age_bucket::age_bucket,
+    latest_content_modification_time::latest_content_modification_time
 };
 
 fn is_xz_archive(p: &std::path::Path) -> bool {
@@ -24,24 +24,6 @@ fn is_xz_archive(p: &std::path::Path) -> bool {
 
 fn starts_with_three_digits(dir_name: &str) -> bool {
     dir_name.chars().take(3).count() == 3 && dir_name.chars().take(3).all(|c| c.is_ascii_digit())
-}
-
-fn latest_content_modification_time(
-    path: &std::path::Path,
-) -> Result<Option<SystemTime>> {
-    let mut latest = None;
-
-    for entry in WalkDir::new(path).min_depth(1) {
-        let entry = entry?;
-        let modified = entry.metadata()?.modified()?;
-
-        match latest {
-            Some(current_latest) if modified <= current_latest => {}
-            _ => latest = Some(modified),
-        }
-    }
-
-    Ok(latest)
 }
 
 fn is_empty_dir(path: &std::path::Path) -> Result<bool, Box<dyn std::error::Error>> {
