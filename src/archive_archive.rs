@@ -39,11 +39,9 @@ pub fn archive_archive(
             if let Some(file_name) = archive_path.file_name() {
                 let bucket = age_bucket(age);
                 if bucket >= 2 {
-                    // tbd: make sure, that the file will not be deleted it it is already in the right bucket, but just do nothing in that case
                     let p = adir.join(bucket.to_string());
                     fs::create_dir_all(&p)?;
-                    fs::copy(&archive_path, p.join(file_name))?;
-                    fs::remove_file(&archive_path)?;
+                    fs::rename(&archive_path, p.join(file_name))?;
                 }
             }
         }
